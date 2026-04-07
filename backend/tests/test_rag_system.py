@@ -15,20 +15,21 @@ Covers:
 
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from unittest.mock import MagicMock, patch
 from rag_system import RAGSystem
 
-
 # ---------------------------------------------------------------------------
 # Minimal config stub
 # ---------------------------------------------------------------------------
 
+
 class _Config:
     ANTHROPIC_API_KEY = "test-key"
-    ANTHROPIC_MODEL = "claude-sonnet-4-5"   # expected valid model ID
+    ANTHROPIC_MODEL = "claude-sonnet-4-5"  # expected valid model ID
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     CHUNK_SIZE = 800
     CHUNK_OVERLAP = 100
@@ -41,17 +42,22 @@ class _Config:
 # Fixture
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def rag():
     """RAGSystem with all heavy components replaced by mocks."""
-    with patch("rag_system.VectorStore"), \
-         patch("rag_system.AIGenerator"), \
-         patch("rag_system.DocumentProcessor"):
+    with (
+        patch("rag_system.VectorStore"),
+        patch("rag_system.AIGenerator"),
+        patch("rag_system.DocumentProcessor"),
+    ):
         system = RAGSystem(_Config())
 
     # Replace live objects with controllable mocks
     system.ai_generator = MagicMock()
-    system.ai_generator.generate_response.return_value = "Python is a programming language."
+    system.ai_generator.generate_response.return_value = (
+        "Python is a programming language."
+    )
 
     system.tool_manager = MagicMock()
     system.tool_manager.get_tool_definitions.return_value = [
@@ -75,6 +81,7 @@ def rag():
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRAGSystemQuery:
 
@@ -131,7 +138,9 @@ class TestRAGSystemQuery:
     def test_ai_exception_propagates_as_500_candidate(self, rag):
         """Exceptions must propagate to app.py's handler — not silently swallowed.
         A silent catch here would hide the real error from the HTTP 500 response."""
-        rag.ai_generator.generate_response.side_effect = Exception("API error: model not found")
+        rag.ai_generator.generate_response.side_effect = Exception(
+            "API error: model not found"
+        )
         with pytest.raises(Exception, match="API error"):
             rag.query("Any question")
 
@@ -139,6 +148,7 @@ class TestRAGSystemQuery:
 # ---------------------------------------------------------------------------
 # Config sanity check
 # ---------------------------------------------------------------------------
+
 
 class TestConfigModelName:
     """The configured model name must match a known Anthropic Claude model pattern.
@@ -155,7 +165,8 @@ class TestConfigModelName:
         # Import the real config used in production
         import importlib
         import config as cfg_module
-        importlib.reload(cfg_module)   # ensure fresh load
+
+        importlib.reload(cfg_module)  # ensure fresh load
         model = cfg_module.config.ANTHROPIC_MODEL
 
         valid_prefixes = (
@@ -181,10 +192,12 @@ class TestConfigModelName:
         """
         import importlib
         import config as cfg_module
+
         importlib.reload(cfg_module)
         model = cfg_module.config.ANTHROPIC_MODEL
 
         import re
+
         if "claude-" in model and "-4-" in model:
             assert not re.search(r"-\d{8}$", model), (
                 f"Model '{model}' looks like a Claude 4 model but uses a "
