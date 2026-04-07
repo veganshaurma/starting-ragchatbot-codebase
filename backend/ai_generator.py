@@ -8,16 +8,18 @@ class AIGenerator:
     SYSTEM_PROMPT = """ You are an AI assistant specialized in course materials and educational content with access to a comprehensive search tool for course information.
 
 Search Tool Usage:
-- Use the search tool **only** for questions about specific course content or detailed educational materials
-- **One search per query maximum**
-- Synthesize search results into accurate, fact-based responses
-- If search yields no results, state this clearly without offering alternatives
+- Use **get_course_outline** for questions about a course's structure, lesson list, or overview (e.g. "what lessons does X have?", "outline of X", "what topics are covered in X?")
+- Use **search_course_content** for questions about specific content within a course
+- You may make up to 2 sequential tool calls when a question requires gathering information from multiple sources before answering; prefer a single call when it provides sufficient information
+- Synthesize results into accurate, fact-based responses
+- If a tool yields no results, state this clearly without offering alternatives
 
 Response Protocol:
-- **General knowledge questions**: Answer using existing knowledge without searching
-- **Course-specific questions**: Search first, then answer
+- **General knowledge questions**: Answer using existing knowledge without using tools
+- **Course outline questions**: Use get_course_outline, then present the course title, link, and numbered lesson list clearly
+- **Course-specific content questions**: Use search_course_content, then answer
 - **No meta-commentary**:
- - Provide direct answers only — no reasoning process, search explanations, or question-type analysis
+ - Provide direct answers only — no reasoning process, tool explanations, or question-type analysis
  - Do not mention "based on the search results"
 
 
@@ -88,48 +90,80 @@ Provide only the direct answer to what was asked.
     
     def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
         """
-        Handle execution of tool calls and get follow-up response.
-        
+        Handle up to 2 sequential rounds of tool execution.
+
+        Each round: append assistant tool-use content, execute tools, append
+        results, then offer tools again (unless the round budget is exhausted).
+        A synthesis call with no tools is always made after the loop.
+
         Args:
-            initial_response: The response containing tool use requests
-            base_params: Base API parameters
+            initial_response: The first response containing tool use requests
+            base_params: Base API parameters (may include tools/tool_choice)
             tool_manager: Manager to execute tools
-            
+
         Returns:
             Final response text after tool execution
         """
-        # Start with existing messages
+        MAX_ROUNDS = 2
+        available_tools = base_params.get("tools")
+        tool_choice = base_params.get("tool_choice")
+        system = base_params["system"]
+
         messages = base_params["messages"].copy()
-        
-        # Add AI's tool use response
-        messages.append({"role": "assistant", "content": initial_response.content})
-        
-        # Execute all tool calls and collect results
-        tool_results = []
-        for content_block in initial_response.content:
-            if content_block.type == "tool_use":
-                tool_result = tool_manager.execute_tool(
-                    content_block.name, 
-                    **content_block.input
-                )
-                
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": content_block.id,
-                    "content": tool_result
-                })
-        
-        # Add tool results as single message
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-        
-        # Prepare final API call without tools
+        current_response = initial_response
+
+        for round_number in range(1, MAX_ROUNDS + 1):
+            # Append this round's assistant message
+            messages.append({"role": "assistant", "content": current_response.content})
+
+            # Execute all tool calls in this round
+            tool_results = []
+            failed = False
+            for content_block in current_response.content:
+                if content_block.type == "tool_use":
+                    try:
+                        result = tool_manager.execute_tool(
+                            content_block.name,
+                            **content_block.input
+                        )
+                    except Exception as e:
+                        result = f"Tool execution failed: {e}"
+                        failed = True
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": content_block.id,
+                        "content": result
+                    })
+
+            if tool_results:
+                messages.append({"role": "user", "content": tool_results})
+
+            # On exception, skip remaining rounds and go straight to synthesis
+            if failed:
+                break
+
+            # If more rounds remain, offer tools so Claude can chain calls
+            if round_number < MAX_ROUNDS:
+                intermediate_params = {
+                    **self.base_params,
+                    "messages": messages,
+                    "system": system,
+                    "tools": available_tools,
+                    "tool_choice": tool_choice,
+                }
+                intermediate_response = self.client.messages.create(**intermediate_params)
+
+                # Early exit: Claude chose to answer rather than call another tool
+                if intermediate_response.stop_reason != "tool_use":
+                    return intermediate_response.content[0].text
+
+                current_response = intermediate_response
+
+        # Final synthesis call — no tools
         final_params = {
             **self.base_params,
             "messages": messages,
-            "system": base_params["system"]
+            "system": system,
         }
-        
-        # Get final response
         final_response = self.client.messages.create(**final_params)
         return final_response.content[0].text
