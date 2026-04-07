@@ -16,16 +16,17 @@ Covers:
 
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 from unittest.mock import MagicMock, patch
 from ai_generator import AIGenerator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_text_block(text: str):
     block = MagicMock()
@@ -80,6 +81,7 @@ SAMPLE_TOOLS = [
 # ---------------------------------------------------------------------------
 # Direct response (no tool use)
 # ---------------------------------------------------------------------------
+
 
 class TestDirectResponse:
 
@@ -146,6 +148,7 @@ class TestDirectResponse:
 # Tool-use branch
 # ---------------------------------------------------------------------------
 
+
 class TestToolUseBranch:
 
     def setup_method(self):
@@ -178,7 +181,11 @@ class TestToolUseBranch:
             _mock_response(
                 stop_reason="tool_use",
                 tool_calls=[
-                    ("search_course_content", {"query": "neural nets", "course_name": "ML"}, "tid2")
+                    (
+                        "search_course_content",
+                        {"query": "neural nets", "course_name": "ML"},
+                        "tid2",
+                    )
                 ],
             ),
             _mock_response(text="Neural networks are...", stop_reason="end_turn"),
@@ -282,6 +289,7 @@ class TestToolUseBranch:
 # Multi-round tool use (up to 2 sequential rounds)
 # ---------------------------------------------------------------------------
 
+
 class TestMultiRoundToolUse:
 
     def setup_method(self):
@@ -305,14 +313,18 @@ class TestMultiRoundToolUse:
             ),
             _mock_response(
                 stop_reason="tool_use",
-                tool_calls=[("search_course_content", {"query": "neural nets"}, "tid-r2")],
+                tool_calls=[
+                    ("search_course_content", {"query": "neural nets"}, "tid-r2")
+                ],
             ),
             _mock_response(text="Neural networks are...", stop_reason="end_turn"),
         ]
         mgr = self._mock_tool_manager(side_effects=["Outline result", "Content result"])
 
         result = self.gen.generate_response(
-            query="Compare neural nets across courses", tools=SAMPLE_TOOLS, tool_manager=mgr
+            query="Compare neural nets across courses",
+            tools=SAMPLE_TOOLS,
+            tool_manager=mgr,
         )
 
         assert result == "Neural networks are..."
@@ -377,7 +389,9 @@ class TestMultiRoundToolUse:
             ),
             _mock_response(text="Done.", stop_reason="end_turn"),
         ]
-        mgr = self._mock_tool_manager(side_effects=["Lesson 4 covers recursion", "search data"])
+        mgr = self._mock_tool_manager(
+            side_effects=["Lesson 4 covers recursion", "search data"]
+        )
 
         self.gen.generate_response(
             query="Question", tools=SAMPLE_TOOLS, tool_manager=mgr
@@ -386,11 +400,11 @@ class TestMultiRoundToolUse:
         second_kw = self.client.messages.create.call_args_list[1][1]
         messages = second_kw["messages"]
         found = any(
-            isinstance(msg.get("content"), list) and
-            any(
-                isinstance(item, dict) and
-                item.get("type") == "tool_result" and
-                item.get("content") == "Lesson 4 covers recursion"
+            isinstance(msg.get("content"), list)
+            and any(
+                isinstance(item, dict)
+                and item.get("type") == "tool_result"
+                and item.get("content") == "Lesson 4 covers recursion"
                 for item in msg["content"]
             )
             for msg in messages
@@ -436,11 +450,11 @@ class TestMultiRoundToolUse:
         second_kw = self.client.messages.create.call_args_list[1][1]
         messages = second_kw["messages"]
         found = any(
-            isinstance(msg.get("content"), list) and
-            any(
-                isinstance(item, dict) and
-                item.get("type") == "tool_result" and
-                "db connection failed" in item.get("content", "")
+            isinstance(msg.get("content"), list)
+            and any(
+                isinstance(item, dict)
+                and item.get("type") == "tool_result"
+                and "db connection failed" in item.get("content", "")
                 for item in msg["content"]
             )
             for msg in messages

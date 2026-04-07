@@ -12,6 +12,7 @@ Covers:
 
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
@@ -19,12 +20,14 @@ from unittest.mock import MagicMock
 from search_tools import CourseSearchTool, CourseOutlineTool, ToolManager
 from vector_store import SearchResults
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_store(documents=None, metadata=None, distances=None, error=None, lesson_link=None):
+
+def make_store(
+    documents=None, metadata=None, distances=None, error=None, lesson_link=None
+):
     """Return a mock VectorStore with a preset search() response."""
     store = MagicMock()
     if error:
@@ -42,6 +45,7 @@ def make_store(documents=None, metadata=None, distances=None, error=None, lesson
 # ---------------------------------------------------------------------------
 # CourseSearchTool.execute()
 # ---------------------------------------------------------------------------
+
 
 class TestCourseSearchToolExecute:
 
@@ -183,6 +187,7 @@ class TestCourseSearchToolExecute:
 # ---------------------------------------------------------------------------
 # ToolManager
 # ---------------------------------------------------------------------------
+
 
 class TestToolManager:
 
