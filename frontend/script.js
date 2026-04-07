@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatBtn;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatBtn, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,7 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
     newChatBtn = document.getElementById('newChatBtn');
-    
+    themeToggle = document.getElementById('themeToggle');
+
+    // Apply saved theme before first paint
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -31,6 +38,19 @@ function setupEventListeners() {
     });
     
     
+    // Theme toggle
+    themeToggle.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'light' ? null : 'light';
+        if (next) {
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.removeItem('theme');
+        }
+    });
+
     // New chat button
     newChatBtn.addEventListener('click', async () => {
         if (currentSessionId) {
